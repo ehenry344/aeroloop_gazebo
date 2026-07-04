@@ -14,8 +14,8 @@
  * limitations under the License.
  *
 */
-#ifndef GZ_SIM_SYSTEMS_BETAFLIGHTPLUGIN_HH_
-#define GZ_SIM_SYSTEMS_BETAFLIGHTPLUGIN_HH_
+
+#pragma once
 
 #include <memory>
 #include <gz/sim/System.hh>

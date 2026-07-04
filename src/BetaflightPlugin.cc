@@ -17,21 +17,6 @@
 #include <functional>
 #include <fcntl.h>
 
-#ifdef _WIN32
-  #include <Winsock2.h>
-  #include <Ws2def.h>
-  #include <Ws2ipdef.h>
-  #include <Ws2tcpip.h>
-  using raw_type = char;
-#else
-  #include <sys/socket.h>
-  #include <netinet/in.h>
-  #include <netinet/tcp.h>
-  #include <arpa/inet.h>
-  #include <unistd.h>
-  using raw_type = void;
-#endif
-
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
@@ -64,7 +49,10 @@ typedef SSIZE_T ssize_t;
 #include <gz/sim/components/SphericalCoordinates.hh>
 #include <gz/plugin/Register.hh>
 
+#include "udpsocket.hh"
 #include "BetaflightPlugin.hh"
+
+#define SITL_PORT_PWM 9002 // PWM input from Betaflight SITL
 
 #define MAX_MOTORS 255
 #define RADSEC2RPM 9.549296585513721
@@ -204,11 +192,11 @@ class gz::sim::systems::BetaflightPluginPrivate
     if (bind(this->handle, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) != 0)
     {
       shutdown(this->handle, 0);
-      #ifdef _WIN32
+#ifdef _WIN32
       closesocket(this->handle);
-      #else
+#else
       close(this->handle);
-      #endif
+#endif
       return false;
     }
     return true;
@@ -223,9 +211,9 @@ class gz::sim::systems::BetaflightPluginPrivate
   {
     memset(&_sockaddr, 0, sizeof(_sockaddr));
 
-    #ifdef HAVE_SOCK_SIN_LEN
-      _sockaddr.sin_len = sizeof(_sockaddr);
-    #endif
+#ifdef HAVE_SOCK_SIN_LEN
+    _sockaddr.sin_len = sizeof(_sockaddr);
+#endif
 
     _sockaddr.sin_port = htons(_port);
     _sockaddr.sin_family = AF_INET;
@@ -252,11 +240,11 @@ class gz::sim::systems::BetaflightPluginPrivate
         return -1;
     }
 
-    #ifdef _WIN32
+#ifdef _WIN32
     return recv(this->handle, reinterpret_cast<char *>(_buf), _size, 0);
-    #else
+#else
     return recv(this->handle, _buf, _size, 0);
-    #endif
+#endif
   }
 
   /// \brief Model entity
@@ -318,17 +306,17 @@ BetaflightPlugin::BetaflightPlugin()
 {
   // socket
   this->dataPtr->handle = socket(AF_INET, SOCK_DGRAM /*SOCK_STREAM*/, 0);
-  #ifndef _WIN32
+#ifndef _WIN32
   // Windows does not support FD_CLOEXEC
   fcntl(this->dataPtr->handle, F_SETFD, FD_CLOEXEC);
-  #endif
+#endif
   int one = 1;
   setsockopt(this->dataPtr->handle, IPPROTO_TCP, TCP_NODELAY,
       reinterpret_cast<const char *>(&one), sizeof(one));
 
-  if (!this->dataPtr->Bind("127.0.0.1", 9002))
+  if (!this->dataPtr->Bind("127.0.0.1", SITL_PORT_PWM))
   {
-    gzerr << "failed to bind with 127.0.0.1:9002, aborting plugin.\n";
+    gzerr << "failed to bind with 127.0.0.1:"SITL_PORT_PWM", aborting plugin.\n";
     return;
   }
 
@@ -339,14 +327,14 @@ BetaflightPlugin::BetaflightPlugin()
   setsockopt(this->dataPtr->handle, SOL_SOCKET, SO_REUSEADDR,
      reinterpret_cast<const char *>(&one), sizeof(one));
 
-  #ifdef _WIN32
+#ifdef _WIN32
   u_long on = 1;
   ioctlsocket(this->dataPtr->handle, FIONBIO,
               reinterpret_cast<u_long FAR *>(&on));
-  #else
+#else
   fcntl(this->dataPtr->handle, F_SETFL,
       fcntl(this->dataPtr->handle, F_GETFL, 0) | O_NONBLOCK);
-  #endif
+#endif
 }
 
 /////////////////////////////////////////////////
